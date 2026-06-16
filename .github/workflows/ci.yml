@@ -14,8 +14,8 @@ jobs:
     name: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: opentofu/setup-opentofu@v1
+      - uses: actions/checkout@v6
+      - uses: opentofu/setup-opentofu@v2
       - name: tofu fmt
         run: tofu fmt -check -recursive .
 
@@ -27,8 +27,8 @@ jobs:
       matrix:
         module: [talos-cluster, talos-proxmox-nodes]
     steps:
-      - uses: actions/checkout@v4
-      - uses: opentofu/setup-opentofu@v1
+      - uses: actions/checkout@v6
+      - uses: opentofu/setup-opentofu@v2
       - name: tofu init
         run: tofu -chdir=${{ matrix.module }} init -backend=false
       - name: tofu validate
@@ -38,8 +38,8 @@ jobs:
     name: test (talos-cluster)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: opentofu/setup-opentofu@v1
+      - uses: actions/checkout@v6
+      - uses: opentofu/setup-opentofu@v2
       - name: tofu init
         run: tofu -chdir=talos-cluster init -backend=false
       # Renders the Talos machine config and validates config_patches against the
