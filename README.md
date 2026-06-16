@@ -7,12 +7,12 @@ swapped independently:
 
 | Module | Responsibility | Provider |
 |---|---|---|
-| [`proxmox-nodes`](./proxmox-nodes) | Provisions the VMs (and downloads the Talos ISO) on Proxmox. | `bpg/proxmox` |
+| [`talos-proxmox-nodes`](./talos-proxmox-nodes) | Provisions the Proxmox VMs that back Talos nodes (and downloads the Talos ISO). | `bpg/proxmox` |
 | [`talos-cluster`](./talos-cluster) | Configures Talos + bootstraps the Kubernetes cluster on nodes that are already reachable. **Platform-agnostic.** | `siderolabs/talos` |
 
 `talos-cluster` does **not** create machines — it only configures Talos on nodes
 that are already booted into maintenance mode at known IPs. That keeps it
-reusable for any node source (Proxmox, bare metal, vSphere, …). `proxmox-nodes`
+reusable for any node source (Proxmox, bare metal, vSphere, …). `talos-proxmox-nodes`
 is the matching node source for a Proxmox homelab and emits a `talos_nodes`
 output shaped exactly for `talos-cluster`'s `nodes` input.
 
@@ -30,12 +30,12 @@ Reference a module by sub-directory and pin a tag with `?ref=`:
 
 ```hcl
 source = "git::https://github.com/kreativmonkey/terraform-module.git//talos-cluster?ref=v0.1.0"
-source = "git::https://github.com/kreativmonkey/terraform-module.git//proxmox-nodes?ref=v0.1.0"
+source = "git::https://github.com/kreativmonkey/terraform-module.git//talos-proxmox-nodes?ref=v0.1.0"
 ```
 
 ## Example — Proxmox + Talos end to end
 
-Provision the VMs with `proxmox-nodes`, then feed its `talos_nodes` output into
+Provision the VMs with `talos-proxmox-nodes`, then feed its `talos_nodes` output into
 `talos-cluster`. The `depends_on` makes sure Talos is only configured after the
 VMs exist and are reachable.
 
@@ -69,7 +69,7 @@ locals {
 
 # 1. Provision the Proxmox VMs.
 module "nodes" {
-  source = "git::https://github.com/kreativmonkey/terraform-module.git//proxmox-nodes?ref=v0.1.0"
+  source = "git::https://github.com/kreativmonkey/terraform-module.git//talos-proxmox-nodes?ref=v0.1.0"
 
   nodes              = local.nodes
   talos_version      = local.talos_version
@@ -114,7 +114,7 @@ output "talosconfig" {
 | `worker` | — | dedicated worker (always schedulable) |
 
 See each module's own README for the full input/output reference:
-[`proxmox-nodes`](./proxmox-nodes/README.md) ·
+[`talos-proxmox-nodes`](./talos-proxmox-nodes/README.md) ·
 [`talos-cluster`](./talos-cluster/README.md).
 
 ## Wiring downstream providers (kubernetes / helm / flux)

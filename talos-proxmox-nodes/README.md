@@ -1,4 +1,4 @@
-# proxmox-nodes
+# talos-proxmox-nodes
 
 OpenTofu/Terraform module that provisions Proxmox VMs to back Talos nodes and
 downloads the Talos ISO to (shared) Proxmox storage. It **only creates the
@@ -12,7 +12,7 @@ Its `talos_nodes` output is shaped exactly for `talos-cluster`'s `nodes` input
 
 ```hcl
 module "nodes" {
-  source = "git::https://github.com/kreativmonkey/terraform-module.git//proxmox-nodes?ref=v0.1.0"
+  source = "git::https://github.com/kreativmonkey/terraform-module.git//talos-proxmox-nodes?ref=v0.1.0"
 
   talos_schematic_id = "<image-factory-schematic-id>"
 

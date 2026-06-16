@@ -41,7 +41,7 @@ module "cluster" {
 ```
 
 The node IPs must be reachable and booted into Talos maintenance mode before apply
-(e.g. provide them via a `proxmox-nodes`-style module and `depends_on`).
+(e.g. provide them via a `talos-proxmox-nodes`-style module and `depends_on`).
 
 ## Key inputs
 
