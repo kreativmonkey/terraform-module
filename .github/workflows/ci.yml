@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+      - name: tofu fmt
+        run: tofu fmt -check -recursive .
+
+  validate:
+    name: validate (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [talos-cluster, talos-proxmox-nodes]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+      - name: tofu init
+        run: tofu -chdir=${{ matrix.module }} init -backend=false
+      - name: tofu validate
+        run: tofu -chdir=${{ matrix.module }} validate
+
+  test:
+    name: test (talos-cluster)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+      - name: tofu init
+        run: tofu -chdir=talos-cluster init -backend=false
+      # Renders the Talos machine config and validates config_patches against the
+      # Talos schema offline (no reachable nodes needed). Catches invalid keys
+      # like the former machine.api.advertisedAddresses.
+      - name: tofu test
+        run: tofu -chdir=talos-cluster test
