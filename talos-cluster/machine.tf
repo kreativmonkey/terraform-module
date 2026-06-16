@@ -20,6 +20,13 @@ data "talos_machine_configuration" "controlplane" {
       cluster = {
         # Cluster-wide switch; per-node opt-out is handled via nodeTaints below.
         allowSchedulingOnControlPlanes = local.any_cp_scheduling
+        # Keep etcd peer/client traffic on the LAN. Without this, etcd may pick a
+        # Netbird mesh address (100.96.x.x) as its advertised/peer address, which
+        # breaks node-to-node operations (e.g. rotate-ca).
+        etcd = {
+          advertisedSubnets = [var.kubelet_valid_subnet]
+          listenSubnets     = [var.kubelet_valid_subnet]
+        }
       }
       machine = merge(
         {
@@ -52,11 +59,6 @@ data "talos_machine_configuration" "controlplane" {
             nodeIP = {
               validSubnets = [var.kubelet_valid_subnet]
             }
-          }
-          # Talos API: advertise LAN IP only (not Netbird 100.96.x.x). Otherwise
-          # node-to-node API calls (e.g. rotate-ca) try the mesh address and fail.
-          api = {
-            advertisedAddresses = [each.value.ip_address]
           }
         },
         # Dedicated Longhorn data disk (omitted when the node has longhorn = false).
@@ -131,9 +133,6 @@ data "talos_machine_configuration" "worker" {
             nodeIP = {
               validSubnets = [var.kubelet_valid_subnet]
             }
-          }
-          api = {
-            advertisedAddresses = [each.value.ip_address]
           }
         },
         each.value.longhorn ? {
