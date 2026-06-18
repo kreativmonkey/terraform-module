@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_vm" "talos_node" {
 
   # Main OS disk
   disk {
-    datastore_id = var.vm_storage_id
+    datastore_id = local.node_storage_id[each.key]
     file_format  = "raw"
     interface    = "scsi0"
     size         = coalesce(each.value.disk_gb, var.default_disk_gb)
@@ -43,7 +43,7 @@ resource "proxmox_virtual_environment_vm" "talos_node" {
   dynamic "disk" {
     for_each = local.node_longhorn_gb[each.key] > 0 ? [local.node_longhorn_gb[each.key]] : []
     content {
-      datastore_id = var.vm_storage_id
+      datastore_id = local.node_storage_id[each.key]
       file_format  = "raw"
       interface    = "scsi1"
       size         = disk.value
@@ -55,7 +55,7 @@ resource "proxmox_virtual_environment_vm" "talos_node" {
     for_each = each.value.extra_disks
     iterator = extra_disk
     content {
-      datastore_id = coalesce(extra_disk.value.datastore_id, var.vm_storage_id)
+      datastore_id = coalesce(extra_disk.value.datastore_id, local.node_storage_id[each.key])
       file_format  = "raw"
       interface    = coalesce(extra_disk.value.interface, "scsi${2 + extra_disk.index}")
       size         = extra_disk.value.size
@@ -73,7 +73,7 @@ resource "proxmox_virtual_environment_vm" "talos_node" {
   ]
 
   initialization {
-    datastore_id = var.vm_storage_id
+    datastore_id = local.node_storage_id[each.key]
     ip_config {
       ipv4 {
         address = "${each.value.ip_address}/${var.network_subnet}"

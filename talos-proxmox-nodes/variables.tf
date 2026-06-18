@@ -117,6 +117,11 @@ variable "nodes" {
     disk_gb          = optional(number)
     longhorn_disk_gb = optional(number)
 
+    # Datastore for this node's main + Longhorn disks and the cloud-init drive.
+    # Falls back to var.vm_storage_id. Use when a Proxmox host exposes a different
+    # storage name (e.g. local_storage vs. the cluster-wide local-lvm).
+    storage_id = optional(string)
+
     extra_disks = optional(list(object({
       size         = number
       datastore_id = optional(string)

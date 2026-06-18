@@ -1,6 +1,11 @@
 locals {
   nodes_map = { for n in var.nodes : n.name => n }
 
+  # Effective datastore per node (per-node storage_id overrides vm_storage_id).
+  node_storage_id = {
+    for n in var.nodes : n.name => coalesce(n.storage_id, var.vm_storage_id)
+  }
+
   # Effective Longhorn disk size per node (0 / null => no Longhorn disk).
   node_longhorn_gb = {
     for n in var.nodes : n.name => (

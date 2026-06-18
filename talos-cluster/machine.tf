@@ -22,9 +22,10 @@ data "talos_machine_configuration" "controlplane" {
         allowSchedulingOnControlPlanes = local.any_cp_scheduling
         # Keep etcd peer/client traffic on the LAN. Without this, etcd may pick a
         # Netbird mesh address (100.96.x.x) as its advertised/peer address, which
-        # breaks node-to-node operations (e.g. rotate-ca).
+        # breaks node-to-node operations (e.g. rotate-ca). advertisedSubnets may
+        # carry explicit excludes (e.g. "!100.64.0.0/10") via etcd_advertised_subnets.
         etcd = {
-          advertisedSubnets = [var.kubelet_valid_subnet]
+          advertisedSubnets = coalesce(var.etcd_advertised_subnets, [var.kubelet_valid_subnet])
           listenSubnets     = [var.kubelet_valid_subnet]
         }
       }

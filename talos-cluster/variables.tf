@@ -54,6 +54,16 @@ variable "kubelet_valid_subnet" {
   description = "CIDR the kubelet must register from (LAN). Keeps node IPs off any mesh range (e.g. Netbird) so metrics-server/exec/port-forward work."
 }
 
+variable "etcd_advertised_subnets" {
+  type        = list(string)
+  default     = null
+  description = <<-EOT
+    etcd advertisedSubnets. Defaults to [kubelet_valid_subnet]. Set explicitly to
+    pin etcd's advertised address onto the LAN and exclude mesh ranges, e.g.
+    ["192.168.10.0/24", "!100.64.0.0/10"] to keep etcd off the Netbird range.
+  EOT
+}
+
 variable "longhorn_disk_device" {
   type        = string
   default     = "/dev/sdb"
