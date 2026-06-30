@@ -6,7 +6,8 @@ machines** — the Talos cluster itself is configured by the platform-agnostic
 [`talos-cluster`](../talos-cluster) module.
 
 Its `talos_nodes` output is shaped exactly for `talos-cluster`'s `nodes` input
-(it resolves the `longhorn` flag from each node's effective Longhorn disk size).
+(it resolves each named data disk to its guest device and passes the
+`{ device, mountpoint }` pairs through).
 
 ## Usage
 
@@ -19,11 +20,18 @@ module "nodes" {
   vm_storage_id  = "local-lvm"
   iso_storage_id = "NFS-Storage" # shared storage: one ISO download reaches every node
 
+  # Named data disks created on every node (override per node via node.data_disks).
+  default_data_disks = [
+    { name = "cnpg", size_gb = 20, mountpoint = "/var/mnt/cnpg" },
+    { name = "longhorn", size_gb = 80, mountpoint = "/var/lib/longhorn" },
+  ]
+
   nodes = [
     { name = "talos-cp1", target_pve = "pve1", ip_address = "192.168.10.41", role = "controlplane", allow_scheduling = true },
     { name = "talos-cp2", target_pve = "pve2", ip_address = "192.168.10.42", role = "controlplane", allow_scheduling = true },
     { name = "talos-cp3", target_pve = "pve3", ip_address = "192.168.10.43", role = "controlplane", allow_scheduling = true, cpu_sockets = 2 },
-    # { name = "talos-wrk1", target_pve = "pve1", ip_address = "192.168.10.51", role = "worker", longhorn_disk_gb = 0 },
+    # A worker with no data disks (overrides the module default):
+    # { name = "talos-wrk1", target_pve = "pve1", ip_address = "192.168.10.51", role = "worker", data_disks = [] },
   ]
 }
 ```
@@ -48,7 +56,7 @@ The `proxmox` provider must be configured by the caller.
 | `default_cpu_type` | `x86-64-v2-AES` | Per-node CPU type. |
 | `default_memory_mb` | `4096` | Per-node memory. |
 | `default_disk_gb` | `20` | Per-node OS disk size. |
-| `default_longhorn_disk_gb` | `50` | Default Longhorn data-disk size. Set a node's `longhorn_disk_gb = 0` for no Longhorn disk. |
+| `default_data_disks` | `[]` | Named data disks created on every node: list of `{ name, size_gb, mountpoint, datastore_id? }`. Each becomes a Proxmox disk + a Talos mount. Override per node via `node.data_disks`. |
 
 ### `nodes` object
 
@@ -60,9 +68,9 @@ The `proxmox` provider must be configured by the caller.
 | `role` | no (`controlplane`) | Passed through to `talos_nodes`. |
 | `allow_scheduling` | no | Passed through to `talos_nodes` (controlplane only). |
 | `cpu_cores` / `cpu_sockets` / `cpu_type` / `memory_mb` / `disk_gb` | no | Per-node overrides of the `default_*` values. |
-| `longhorn_disk_gb` | no | Override the Longhorn disk size (`0` = none). |
-| `storage_id` | no | Datastore for this node's main + Longhorn disks and cloud-init drive. Overrides `vm_storage_id` (e.g. a host that exposes `local_storage` instead of `local-lvm`). |
-| `extra_disks` | no (`[]`) | Additional disks: `{ size, datastore_id?, interface? }`. |
+| `data_disks` | no | Named data disks for this node: list of `{ name, size_gb, mountpoint, datastore_id? }`. `null` (unset) inherits `default_data_disks`; `[]` means none. Attached on scsi1, scsi2, … in order. |
+| `storage_id` | no | Datastore for this node's main + data disks and cloud-init drive. Overrides `vm_storage_id` (e.g. a host that exposes `local_storage` instead of `local-lvm`). |
+| `extra_disks` | no (`[]`) | Raw disks created but **not** mounted by Talos: `{ size, datastore_id?, interface? }`. Attached after the data disks. |
 
 ## Outputs
 

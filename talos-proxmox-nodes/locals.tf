@@ -6,11 +6,30 @@ locals {
     for n in var.nodes : n.name => coalesce(n.storage_id, var.vm_storage_id)
   }
 
-  # Effective Longhorn disk size per node (0 / null => no Longhorn disk).
-  node_longhorn_gb = {
+  # Effective data disks per node (node.data_disks overrides the module default;
+  # null => inherit var.default_data_disks, [] => explicitly none).
+  node_data_disks = {
     for n in var.nodes : n.name => (
-      n.longhorn_disk_gb != null ? n.longhorn_disk_gb : var.default_longhorn_disk_gb
+      n.data_disks != null ? n.data_disks : var.default_data_disks
     )
+  }
+
+  # Resolve the guest device + Proxmox interface for each data disk. Data disks
+  # occupy scsi1..scsiN (the OS disk is scsi0 => /dev/sda). virtio-scsi disks
+  # enumerate in slot order at boot, before any iSCSI volumes attach, so scsi(1+i)
+  # is deterministically /dev/sd<b+i>.
+  disk_letters = "bcdefghijklmnopqrstuvwxyz"
+  node_data_disks_resolved = {
+    for name, disks in local.node_data_disks : name => [
+      for i, d in disks : {
+        name         = d.name
+        size_gb      = d.size_gb
+        mountpoint   = d.mountpoint
+        datastore_id = d.datastore_id
+        interface    = "scsi${1 + i}"
+        device       = "/dev/sd${substr(local.disk_letters, i, 1)}"
+      }
+    ]
   }
 
   # ISO is downloaded once to shared storage; pick a stable host (lowest node name).

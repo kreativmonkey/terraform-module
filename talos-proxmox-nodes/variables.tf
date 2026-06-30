@@ -67,10 +67,33 @@ variable "default_disk_gb" {
   default = 20
 }
 
-variable "default_longhorn_disk_gb" {
-  type        = number
-  default     = 50
-  description = "Default Longhorn data-disk size. Set a node's longhorn_disk_gb to 0 to deploy it without a Longhorn disk."
+variable "default_data_disks" {
+  type = list(object({
+    name         = string
+    size_gb      = number
+    mountpoint   = string
+    datastore_id = optional(string)
+  }))
+  default     = []
+  description = <<-EOT
+    Named data disks created on every node, unless a node overrides them via
+    node.data_disks. Each entry becomes one dedicated Proxmox disk plus a Talos
+    partition mounted at `mountpoint` — e.g.
+      [
+        { name = "cnpg",     size_gb = 20, mountpoint = "/var/mnt/cnpg" },
+        { name = "longhorn", size_gb = 80, mountpoint = "/var/lib/longhorn" },
+      ]
+    `datastore_id` falls back to the node's storage. Disks are attached in list
+    order on scsi1, scsi2, … (the OS disk is scsi0).
+  EOT
+
+  validation {
+    condition = (
+      length(distinct([for d in var.default_data_disks : d.mountpoint])) == length(var.default_data_disks)
+      && alltrue([for d in var.default_data_disks : startswith(d.mountpoint, "/")])
+    )
+    error_message = "default_data_disks mountpoints must be unique and absolute."
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -110,18 +133,29 @@ variable "nodes" {
     role             = optional(string, "controlplane")
     allow_scheduling = optional(bool)
 
-    cpu_cores        = optional(number)
-    cpu_sockets      = optional(number)
-    cpu_type         = optional(string)
-    memory_mb        = optional(number)
-    disk_gb          = optional(number)
-    longhorn_disk_gb = optional(number)
+    cpu_cores   = optional(number)
+    cpu_sockets = optional(number)
+    cpu_type    = optional(string)
+    memory_mb   = optional(number)
+    disk_gb     = optional(number)
 
-    # Datastore for this node's main + Longhorn disks and the cloud-init drive.
+    # Named data disks for this node. null => inherit var.default_data_disks;
+    # [] => no data disks. Each becomes a Proxmox disk + a Talos mount at
+    # `mountpoint`, attached in order on scsi1, scsi2, … (OS disk is scsi0).
+    data_disks = optional(list(object({
+      name         = string
+      size_gb      = number
+      mountpoint   = string
+      datastore_id = optional(string)
+    })))
+
+    # Datastore for this node's main + data disks and the cloud-init drive.
     # Falls back to var.vm_storage_id. Use when a Proxmox host exposes a different
     # storage name (e.g. local_storage vs. the cluster-wide local-lvm).
     storage_id = optional(string)
 
+    # Raw extra disks created on the VM but NOT mounted by Talos (passthrough /
+    # manual use). Attached after the data disks.
     extra_disks = optional(list(object({
       size         = number
       datastore_id = optional(string)
@@ -132,5 +166,15 @@ variable "nodes" {
   validation {
     condition     = length(distinct([for n in var.nodes : n.name])) == length(var.nodes)
     error_message = "node.name values must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for n in var.nodes : n.data_disks == null ? true : (
+        length(distinct([for d in n.data_disks : d.mountpoint])) == length(n.data_disks)
+        && alltrue([for d in n.data_disks : startswith(d.mountpoint, "/")])
+      )
+    ])
+    error_message = "Each node's data_disks must have unique, absolute mountpoints."
   }
 }
