@@ -54,8 +54,7 @@ The node IPs must be reachable and booted into Talos maintenance mode before app
 | `image_platform` | `nocloud` | Builds the `<platform>-installer` reference. |
 | `network_gateway` / `network_subnet` | `192.168.10.1` / `24` | Node networking. |
 | `kubelet_valid_subnet` | `192.168.10.0/24` | LAN CIDR the kubelet registers from. |
-| `longhorn_disk_device` | `/dev/sdb` | Guest device mounted at `/var/lib/longhorn`. |
-| `nodes` | — | List of `{ name, ip_address, role?, allow_scheduling?, longhorn? }`. |
+| `nodes` | — | List of `{ name, ip_address, role?, allow_scheduling?, data_disks? }`, where `data_disks` is a list of `{ device, mountpoint }` (typically from `talos-proxmox-nodes`' `talos_nodes` output). |
 | `extra_config_patches` | `[]` | Extra Talos config patches applied to every node. |
 
 ## Outputs

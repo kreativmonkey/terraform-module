@@ -39,25 +39,28 @@ resource "proxmox_virtual_environment_vm" "talos_node" {
     size         = coalesce(each.value.disk_gb, var.default_disk_gb)
   }
 
-  # Longhorn data disk (omitted when longhorn_disk_gb resolves to 0)
+  # Named data disks (each mounted by the talos-cluster module at its mountpoint).
+  # Attached on scsi1, scsi2, … in list order.
   dynamic "disk" {
-    for_each = local.node_longhorn_gb[each.key] > 0 ? [local.node_longhorn_gb[each.key]] : []
+    for_each = local.node_data_disks_resolved[each.key]
+    iterator = data_disk
     content {
-      datastore_id = local.node_storage_id[each.key]
+      datastore_id = coalesce(data_disk.value.datastore_id, local.node_storage_id[each.key])
       file_format  = "raw"
-      interface    = "scsi1"
-      size         = disk.value
+      interface    = data_disk.value.interface
+      size         = data_disk.value.size_gb
     }
   }
 
-  # Additional disks (if configured)
+  # Raw extra disks (created but NOT mounted by Talos). Attached after the data
+  # disks so their default scsi slots don't collide.
   dynamic "disk" {
     for_each = each.value.extra_disks
     iterator = extra_disk
     content {
       datastore_id = coalesce(extra_disk.value.datastore_id, local.node_storage_id[each.key])
       file_format  = "raw"
-      interface    = coalesce(extra_disk.value.interface, "scsi${2 + extra_disk.index}")
+      interface    = coalesce(extra_disk.value.interface, "scsi${1 + length(local.node_data_disks_resolved[each.key]) + extra_disk.index}")
       size         = extra_disk.value.size
     }
   }

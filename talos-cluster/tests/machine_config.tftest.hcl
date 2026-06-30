@@ -18,19 +18,23 @@ variables {
       ip_address       = "192.168.10.11"
       role             = "controlplane"
       allow_scheduling = false # manager-only: exercises the nodeTaints branch
-      longhorn         = false
+      data_disks       = []    # no data disks
     },
     {
       name       = "cp2"
       ip_address = "192.168.10.12"
       role       = "controlplane"
-      longhorn   = true # exercises the Longhorn data-disk branch
+      # exercises the multi data-disk branch
+      data_disks = [
+        { device = "/dev/sdb", mountpoint = "/var/mnt/cnpg" },
+        { device = "/dev/sdc", mountpoint = "/var/lib/longhorn" },
+      ]
     },
     {
       name       = "wrk1"
       ip_address = "192.168.10.21"
       role       = "worker"
-      longhorn   = true
+      data_disks = [{ device = "/dev/sdb", mountpoint = "/var/mnt/data" }]
     },
   ]
 }

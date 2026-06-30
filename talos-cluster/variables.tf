@@ -64,12 +64,6 @@ variable "etcd_advertised_subnets" {
   EOT
 }
 
-variable "longhorn_disk_device" {
-  type        = string
-  default     = "/dev/sdb"
-  description = "Guest device mounted at /var/lib/longhorn on nodes that have longhorn = true."
-}
-
 # ---------------------------------------------------------------------------
 # Nodes
 # ---------------------------------------------------------------------------
@@ -79,7 +73,9 @@ variable "nodes" {
       - "controlplane": joins the control plane. `allow_scheduling` controls
         whether it also runs regular workloads (manager vs. manager+worker).
       - "worker": pure worker.
-    `longhorn` toggles the dedicated /var/lib/longhorn data-disk partition.
+    `data_disks` is a list of { device, mountpoint } partitions to mount on the
+    node (typically produced by the talos-proxmox-nodes module's talos_nodes
+    output, which resolves each named disk to its guest device).
   EOT
 
   type = list(object({
@@ -87,7 +83,10 @@ variable "nodes" {
     ip_address       = string
     role             = optional(string, "controlplane")
     allow_scheduling = optional(bool)
-    longhorn         = optional(bool, true)
+    data_disks = optional(list(object({
+      device     = string
+      mountpoint = string
+    })), [])
   }))
 
   validation {

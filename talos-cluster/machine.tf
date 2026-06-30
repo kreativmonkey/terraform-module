@@ -62,16 +62,12 @@ data "talos_machine_configuration" "controlplane" {
             }
           }
         },
-        # Dedicated Longhorn data disk (omitted when the node has longhorn = false).
-        each.value.longhorn ? {
+        # Named data disks (each mounted at its mountpoint). Empty list => none.
+        length(each.value.data_disks) > 0 ? {
           disks = [
-            {
-              device = var.longhorn_disk_device
-              partitions = [
-                {
-                  mountpoint = "/var/lib/longhorn"
-                }
-              ]
+            for d in each.value.data_disks : {
+              device     = d.device
+              partitions = [{ mountpoint = d.mountpoint }]
             }
           ]
         } : {},
@@ -136,15 +132,12 @@ data "talos_machine_configuration" "worker" {
             }
           }
         },
-        each.value.longhorn ? {
+        # Named data disks (each mounted at its mountpoint). Empty list => none.
+        length(each.value.data_disks) > 0 ? {
           disks = [
-            {
-              device = var.longhorn_disk_device
-              partitions = [
-                {
-                  mountpoint = "/var/lib/longhorn"
-                }
-              ]
+            for d in each.value.data_disks : {
+              device     = d.device
+              partitions = [{ mountpoint = d.mountpoint }]
             }
           ]
         } : {}
