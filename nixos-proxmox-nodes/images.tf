@@ -2,7 +2,8 @@
 # each VM's disk. nixos-anywhere kexecs from this into the NixOS installer, so the
 # distro only has to boot with cloud-init + SSH — it is thrown away on install.
 resource "proxmox_download_file" "bootstrap" {
-  content_type = "iso"
+  # "import" (PVE ≥ 8.4) — import_from lehnt Dateien vom Typ "iso" ab.
+  content_type = "import"
   datastore_id = var.iso_storage_id
   node_name    = local.iso_download_node
 

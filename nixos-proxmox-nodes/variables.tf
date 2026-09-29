@@ -15,7 +15,7 @@ variable "vm_storage_id" {
 variable "iso_storage_id" {
   type        = string
   default     = "NFS-Storage"
-  description = "Datastore for the downloaded bootstrap cloud image. Use shared storage so a single download is reachable from every Proxmox node."
+  description = "Datastore for the downloaded bootstrap cloud image. Use shared storage (with the `import` content type enabled) so a single download is reachable from every Proxmox node."
 }
 
 # ---------------------------------------------------------------------------
@@ -29,8 +29,8 @@ variable "bootstrap_image_url" {
 
 variable "bootstrap_image_file_name" {
   type        = string
-  default     = "debian-12-genericcloud-amd64.img"
-  description = "Local file name for the downloaded image. bpg requires an .img/.iso extension for the iso content type."
+  default     = "debian-12-genericcloud-amd64.qcow2"
+  description = "Local file name for the downloaded image. The import content type requires a .qcow2/.raw/.vmdk extension."
 }
 
 # ---------------------------------------------------------------------------
