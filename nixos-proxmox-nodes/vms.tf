@@ -20,7 +20,16 @@ resource "proxmox_virtual_environment_vm" "nixos_node" {
 
   agent {
     enabled = true # qemu-guest-agent is enabled in the NixOS config post-install.
+    # The bootstrap cloud image ships no guest agent; without this the provider
+    # blocks 15m waiting for IPs. The IP is static (var.nodes) anyway.
+    wait_for_ip {
+      disabled = true
+    }
   }
+
+  # Debian genericcloud logs to console=ttyS0 and panics at boot without a
+  # serial port.
+  serial_device {}
 
   network_device {
     bridge = var.network_bridge
