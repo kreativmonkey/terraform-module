@@ -6,7 +6,8 @@ locals {
 }
 
 resource "hcloud_ssh_key" "this" {
-  for_each   = local.ssh_keys
+  # Kein Key-Upload ins Projekt, wenn keine Server angelegt werden.
+  for_each   = length(var.nodes) > 0 ? local.ssh_keys : {}
   name       = each.key
   public_key = each.value
 }
