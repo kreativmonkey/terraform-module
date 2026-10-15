@@ -1,7 +1,7 @@
 # Shared cluster secrets (CA + keys). This is the cluster identity — never let it
 # be recreated, or every node will reject the new PKI.
 resource "talos_machine_secrets" "this" {
-  talos_version = var.talos_version
+  talos_version = coalesce(var.secrets_talos_version, var.talos_version)
 }
 
 # ---------------------------------------------------------------------------
@@ -10,16 +10,16 @@ resource "talos_machine_secrets" "this" {
 data "talos_machine_configuration" "controlplane" {
   for_each = local.cp_nodes
 
-  cluster_name     = var.cluster_name
-  machine_type     = "controlplane"
-  cluster_endpoint = "https://${var.cluster_endpoint_ip}:6443"
-  machine_secrets  = talos_machine_secrets.this.machine_secrets
+  cluster_name       = var.cluster_name
+  machine_type       = "controlplane"
+  cluster_endpoint   = "https://${var.cluster_endpoint_ip}:6443"
+  machine_secrets    = talos_machine_secrets.this.machine_secrets
+  talos_version      = var.talos_version
+  kubernetes_version = var.kubernetes_version
 
   config_patches = concat([
     yamlencode({
       cluster = {
-        # Cluster-wide switch; per-node opt-out is handled via nodeTaints below.
-        allowSchedulingOnControlPlanes = local.any_cp_scheduling
         # Keep etcd peer/client traffic on the LAN. Without this, etcd may pick a
         # Netbird mesh address (100.96.x.x) as its advertised/peer address, which
         # breaks node-to-node operations (e.g. rotate-ca). advertisedSubnets may
@@ -29,57 +29,59 @@ data "talos_machine_configuration" "controlplane" {
           listenSubnets     = [var.kubelet_valid_subnet]
         }
       }
-      machine = merge(
-        {
-          install = {
-            image = local.installer_image
-          }
-          network = {
-            interfaces = [
-              {
-                deviceSelector = {
-                  physical = true
-                }
-                addresses = ["${each.value.ip_address}/${var.network_subnet}"]
-                routes = [
-                  {
-                    network = "0.0.0.0/0"
-                    gateway = var.network_gateway
-                  }
-                ]
-                # Control-plane VIP for the shared Kubernetes API endpoint.
-                vip = {
-                  ip = var.cluster_endpoint_ip
-                }
-              }
-            ]
-          }
-          # Netbird (hostNetwork) adds 100.96.x.x; kubelet must register the LAN IP
-          # for metrics-server, exec, and port-forward (not the mesh address).
-          kubelet = {
-            nodeIP = {
-              validSubnets = [var.kubelet_valid_subnet]
-            }
-          }
-        },
-        # Named data disks (each mounted at its mountpoint). Empty list => none.
-        length(each.value.data_disks) > 0 ? {
-          disks = [
-            for d in each.value.data_disks : {
-              device     = d.device
-              partitions = [{ mountpoint = d.mountpoint }]
+      machine = {
+        network = {
+          interfaces = [
+            {
+              deviceSelector = { physical = true }
+              addresses      = ["${each.value.ip_address}/${var.network_subnet}"]
+              routes         = [{ network = "0.0.0.0/0", gateway = var.network_gateway }]
+              vip            = { ip = var.cluster_endpoint_ip }
             }
           ]
-        } : {},
-        # Manager-only control plane: re-add the control-plane NoSchedule taint that
-        # allowSchedulingOnControlPlanes would otherwise remove cluster-wide.
-        (local.any_cp_scheduling && !coalesce(each.value.allow_scheduling, true)) ? {
-          nodeTaints = {
-            "node-role.kubernetes.io/control-plane" = ":NoSchedule"
-          }
-        } : {}
-      )
+        }
+        disks = [for d in each.value.data_disks : {
+          device     = d.device
+          partitions = [{ mountpoint = d.mountpoint }]
+        }]
+        kubelet = merge({
+          extraMounts = [for d in each.value.data_disks : {
+            destination = d.mountpoint
+            source      = d.mountpoint
+            type        = "bind"
+            options     = ["bind", "rshared", "rw"]
+          }]
+          }, var.kubernetes_version == null ? {} : {
+          image = "ghcr.io/siderolabs/kubelet:v${var.kubernetes_version}"
+        })
+      }
     }),
+
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "UnattendedInstallConfig"
+      installer  = { image = local.installer_image }
+      provisioning = {
+        diskSelector = { match = "disk.dev_path == \"${var.install_disk}\"" }
+      }
+    }),
+
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "KubeletConfig"
+      "$patch"   = "delete"
+    }),
+
+    yamlencode(merge({
+      apiVersion = "v1alpha1"
+      kind       = "KubeNodeConfig"
+      # Netbird adds a mesh IP; kubelet must register the LAN IP.
+      nodeIP = { validSubnets = [var.kubelet_valid_subnet] }
+      }, coalesce(each.value.allow_scheduling, true) ? {
+      taints = {
+        "node-role.kubernetes.io/control-plane" = { "$patch" = "delete" }
+      }
+    } : {})),
 
     yamlencode({
       apiVersion = "v1alpha1"
@@ -88,7 +90,7 @@ data "talos_machine_configuration" "controlplane" {
       hostname   = each.value.name
     })
     ],
-    [for patch in var.extra_config_patches : yamlencode(patch)]
+    var.extra_config_patches
   )
 }
 
@@ -98,50 +100,61 @@ data "talos_machine_configuration" "controlplane" {
 data "talos_machine_configuration" "worker" {
   for_each = local.worker_nodes
 
-  cluster_name     = var.cluster_name
-  machine_type     = "worker"
-  cluster_endpoint = "https://${var.cluster_endpoint_ip}:6443"
-  machine_secrets  = talos_machine_secrets.this.machine_secrets
+  cluster_name       = var.cluster_name
+  machine_type       = "worker"
+  cluster_endpoint   = "https://${var.cluster_endpoint_ip}:6443"
+  machine_secrets    = talos_machine_secrets.this.machine_secrets
+  talos_version      = var.talos_version
+  kubernetes_version = var.kubernetes_version
 
   config_patches = concat([
     yamlencode({
-      machine = merge(
-        {
-          install = {
-            image = local.installer_image
-          }
-          network = {
-            interfaces = [
-              {
-                deviceSelector = {
-                  physical = true
-                }
-                addresses = ["${each.value.ip_address}/${var.network_subnet}"]
-                routes = [
-                  {
-                    network = "0.0.0.0/0"
-                    gateway = var.network_gateway
-                  }
-                ]
-              }
-            ]
-          }
-          kubelet = {
-            nodeIP = {
-              validSubnets = [var.kubelet_valid_subnet]
-            }
-          }
-        },
-        # Named data disks (each mounted at its mountpoint). Empty list => none.
-        length(each.value.data_disks) > 0 ? {
-          disks = [
-            for d in each.value.data_disks : {
-              device     = d.device
-              partitions = [{ mountpoint = d.mountpoint }]
+      machine = {
+        network = {
+          interfaces = [
+            {
+              deviceSelector = { physical = true }
+              addresses      = ["${each.value.ip_address}/${var.network_subnet}"]
+              routes         = [{ network = "0.0.0.0/0", gateway = var.network_gateway }]
             }
           ]
-        } : {}
-      )
+        }
+        disks = [for d in each.value.data_disks : {
+          device     = d.device
+          partitions = [{ mountpoint = d.mountpoint }]
+        }]
+        kubelet = merge({
+          extraMounts = [for d in each.value.data_disks : {
+            destination = d.mountpoint
+            source      = d.mountpoint
+            type        = "bind"
+            options     = ["bind", "rshared", "rw"]
+          }]
+          }, var.kubernetes_version == null ? {} : {
+          image = "ghcr.io/siderolabs/kubelet:v${var.kubernetes_version}"
+        })
+      }
+    }),
+
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "UnattendedInstallConfig"
+      installer  = { image = local.installer_image }
+      provisioning = {
+        diskSelector = { match = "disk.dev_path == \"${var.install_disk}\"" }
+      }
+    }),
+
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "KubeletConfig"
+      "$patch"   = "delete"
+    }),
+
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "KubeNodeConfig"
+      nodeIP     = { validSubnets = [var.kubelet_valid_subnet] }
     }),
 
     yamlencode({
@@ -151,7 +164,7 @@ data "talos_machine_configuration" "worker" {
       hostname   = each.value.name
     })
     ],
-    [for patch in var.extra_config_patches : yamlencode(patch)]
+    var.extra_config_patches
   )
 }
 
