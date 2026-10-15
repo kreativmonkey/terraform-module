@@ -1,0 +1,11 @@
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+# A mesh (e.g. Netbird) adds a second IP; kubelet must register the LAN IP.
+nodeIP:
+  validSubnets:
+    - ${valid_subnet}
+%{ if allow_scheduling ~}
+taints:
+  node-role.kubernetes.io/control-plane:
+    $patch: delete
+%{ endif ~}

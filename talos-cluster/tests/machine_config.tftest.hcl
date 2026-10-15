@@ -11,6 +11,7 @@ variables {
   cluster_name        = "test-cluster"
   cluster_endpoint_ip = "192.168.10.10"
   talos_schematic_id  = "376567988ad370138ad8b2698212367b8edcb69b5fd8c70079e8fa3a36cd4ca5"
+  kubernetes_version  = "1.36.0"
 
   nodes = [
     {
@@ -70,5 +71,45 @@ run "machine_config_is_valid" {
   assert {
     condition     = length(output.worker_nodes) == 1
     error_message = "Expected 1 worker node in the generated configuration."
+  }
+
+  assert {
+    condition     = strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "kind: SecurityProfileConfig")
+    error_message = "Talos 1.14 must generate the multi-document security profile."
+  }
+
+  assert {
+    condition     = strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "extraMounts:")
+    error_message = "The data disk mounts must remain visible to kubelet."
+  }
+
+  assert {
+    condition     = !strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "kind: KubeletConfig")
+    error_message = "A KubeletConfig document conflicts with legacy kubelet extraMounts."
+  }
+
+  assert {
+    condition     = strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "defaultRuntimeSeccompProfileEnabled: true")
+    error_message = "Removing KubeletConfig must not drop the default seccomp profile."
+  }
+
+  assert {
+    condition     = strcontains(data.talos_machine_configuration.controlplane["cp1"].machine_configuration, "NoSchedule")
+    error_message = "A manager-only control plane must keep its NoSchedule taint."
+  }
+
+  assert {
+    condition     = !strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "NoSchedule")
+    error_message = "A schedulable control plane must drop the NoSchedule taint."
+  }
+
+  assert {
+    condition     = !strcontains(data.talos_machine_configuration.worker["wrk1"].machine_configuration, "vip:")
+    error_message = "Workers must not claim the control-plane VIP."
+  }
+
+  assert {
+    condition     = strcontains(data.talos_machine_configuration.worker["wrk1"].machine_configuration, "disk.dev_path == \"/dev/sda\"")
+    error_message = "UnattendedInstallConfig must select the existing system disk."
   }
 }

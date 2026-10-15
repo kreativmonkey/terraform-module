@@ -1,0 +1,4 @@
+# Conflicts with the legacy machine.kubelet section (see kubelet.yaml.tftpl).
+apiVersion: v1alpha1
+kind: KubeletConfig
+$patch: delete

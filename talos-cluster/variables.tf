@@ -21,7 +21,30 @@ variable "cluster_endpoint_ip" {
 # ---------------------------------------------------------------------------
 variable "talos_version" {
   type    = string
-  default = "v1.13.2"
+  default = "v1.14.2"
+
+  validation {
+    condition     = can(regex("^v1\\.14\\.", var.talos_version))
+    error_message = "This module requires Talos v1.14.x for multi-document configuration."
+  }
+}
+
+variable "secrets_talos_version" {
+  type        = string
+  default     = null
+  description = "Talos contract version used for cluster secrets. Pin to the original value when upgrading an existing cluster so its PKI stays unchanged. Defaults to talos_version for new clusters."
+}
+
+variable "kubernetes_version" {
+  type        = string
+  default     = null
+  description = "Kubernetes version to render into the Talos machine configuration. Set this to the running cluster version to avoid changing component images during config updates."
+}
+
+variable "install_disk" {
+  type        = string
+  default     = "/dev/sda"
+  description = "Existing Talos system disk selected by UnattendedInstallConfig."
 }
 
 variable "talos_schematic_id" {
@@ -111,7 +134,7 @@ variable "nodes" {
 }
 
 variable "extra_config_patches" {
-  description = "Additional Talos config patches (as objects) applied to every node."
-  type        = list(any)
+  description = "Additional Talos multi-document YAML patches applied to every node."
+  type        = list(string)
   default     = []
 }

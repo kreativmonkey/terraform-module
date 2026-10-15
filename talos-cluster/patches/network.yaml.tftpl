@@ -1,0 +1,14 @@
+machine:
+  network:
+    interfaces:
+      - deviceSelector:
+          physical: true
+        addresses:
+          - ${address}
+        routes:
+          - network: 0.0.0.0/0
+            gateway: ${gateway}
+%{ if vip != null ~}
+        vip:
+          ip: ${vip}
+%{ endif ~}
