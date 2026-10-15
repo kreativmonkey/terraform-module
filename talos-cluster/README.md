@@ -25,7 +25,7 @@ Nodes with `allow_scheduling = false` retain the default taint.
 
 ```hcl
 module "cluster" {
-  source = "git::https://github.com/kreativmonkey/terraform-module.git//talos-cluster?ref=v0.4.0"
+  source = "git::https://github.com/kreativmonkey/terraform-module.git//talos-cluster?ref=v0.5.0"
 
   cluster_name        = "homelab-kube"
   cluster_endpoint_ip = "192.168.10.245" # control-plane VIP
@@ -62,13 +62,26 @@ The node IPs must be reachable and booted into Talos maintenance mode before app
 | `nodes` | — | List of `{ name, ip_address, role?, allow_scheduling?, data_disks? }`, where `data_disks` is a list of `{ device, mountpoint }` (typically from `talos-proxmox-nodes`' `talos_nodes` output). |
 | `extra_config_patches` | `[]` | YAML document patches applied to every node. |
 
-The provider generates Talos 1.14's multi-document configuration. Patches for
-`UnattendedInstallConfig`, `KubeNodeConfig`, and `HostnameConfig` keep node-specific
-settings. The legacy document still owns static networking, etcd subnet selection,
-and data disk mounts. Talos 1.14's `KubeletConfig` document does not expose
-`extraMounts`, so the generated `KubeletConfig` document is removed and
-`machine.kubelet.extraMounts` keeps local volumes visible to kubelet. The
-kubelet image is pinned there when `kubernetes_version` is set.
+The provider generates Talos 1.14's multi-document configuration. Node-specific
+patches live in `patches/`, one file per topic, and are assembled in
+`local.node_patches` (same order for control planes and workers):
+
+| File | Document | Sets |
+|---|---|---|
+| `etcd.yaml.tftpl` | legacy `cluster.etcd` | LAN advertise/listen subnets (control planes only) |
+| `network.yaml.tftpl` | legacy `machine.network` | static IP, default route, VIP (control planes only) |
+| `disks.yaml.tftpl` | legacy `machine.disks` | data disk partitions |
+| `kubelet.yaml.tftpl` | legacy `machine.kubelet` | image pin, `extraMounts`, seccomp default |
+| `kubelet-config.yaml` | `KubeletConfig` | removed — conflicts with `machine.kubelet` |
+| `install.yaml.tftpl` | `UnattendedInstallConfig` | installer image, system disk |
+| `node.yaml.tftpl` | `KubeNodeConfig` | LAN node IP, control-plane taint removal |
+| `hostname.yaml.tftpl` | `HostnameConfig` | static hostname |
+
+Talos 1.14's `KubeletConfig` document does not expose `extraMounts`, so kubelet
+stays in the legacy document; `defaultRuntimeSeccompProfileEnabled` and
+`disableManifestsDirectory` restore what the removed document carried.
+Cluster-wide documents (resolver, security profile, volumes, …) belong to the
+caller via `extra_config_patches`, applied last.
 
 ## Outputs
 

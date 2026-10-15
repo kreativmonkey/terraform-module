@@ -5,8 +5,10 @@ resource "talos_machine_secrets" "this" {
 }
 
 # ---------------------------------------------------------------------------
-# Control-plane machine configuration
+# Machine configuration
 # ---------------------------------------------------------------------------
+# Node-specific patches live in patches/, one file per topic; local.node_patches
+# assembles them. Cluster-wide documents come from var.extra_config_patches.
 data "talos_machine_configuration" "controlplane" {
   for_each = local.cp_nodes
 
@@ -17,86 +19,9 @@ data "talos_machine_configuration" "controlplane" {
   talos_version      = var.talos_version
   kubernetes_version = var.kubernetes_version
 
-  config_patches = concat([
-    yamlencode({
-      cluster = {
-        # Keep etcd peer/client traffic on the LAN. Without this, etcd may pick a
-        # Netbird mesh address (100.96.x.x) as its advertised/peer address, which
-        # breaks node-to-node operations (e.g. rotate-ca). advertisedSubnets may
-        # carry explicit excludes (e.g. "!100.64.0.0/10") via etcd_advertised_subnets.
-        etcd = {
-          advertisedSubnets = coalesce(var.etcd_advertised_subnets, [var.kubelet_valid_subnet])
-          listenSubnets     = [var.kubelet_valid_subnet]
-        }
-      }
-      machine = {
-        network = {
-          interfaces = [
-            {
-              deviceSelector = { physical = true }
-              addresses      = ["${each.value.ip_address}/${var.network_subnet}"]
-              routes         = [{ network = "0.0.0.0/0", gateway = var.network_gateway }]
-              vip            = { ip = var.cluster_endpoint_ip }
-            }
-          ]
-        }
-        disks = [for d in each.value.data_disks : {
-          device     = d.device
-          partitions = [{ mountpoint = d.mountpoint }]
-        }]
-        kubelet = merge({
-          extraMounts = [for d in each.value.data_disks : {
-            destination = d.mountpoint
-            source      = d.mountpoint
-            type        = "bind"
-            options     = ["bind", "rshared", "rw"]
-          }]
-          }, var.kubernetes_version == null ? {} : {
-          image = "ghcr.io/siderolabs/kubelet:v${var.kubernetes_version}"
-        })
-      }
-    }),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "UnattendedInstallConfig"
-      installer  = { image = local.installer_image }
-      provisioning = {
-        diskSelector = { match = "disk.dev_path == \"${var.install_disk}\"" }
-      }
-    }),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "KubeletConfig"
-      "$patch"   = "delete"
-    }),
-
-    yamlencode(merge({
-      apiVersion = "v1alpha1"
-      kind       = "KubeNodeConfig"
-      # Netbird adds a mesh IP; kubelet must register the LAN IP.
-      nodeIP = { validSubnets = [var.kubelet_valid_subnet] }
-      }, coalesce(each.value.allow_scheduling, true) ? {
-      taints = {
-        "node-role.kubernetes.io/control-plane" = { "$patch" = "delete" }
-      }
-    } : {})),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "HostnameConfig"
-      auto       = "off"
-      hostname   = each.value.name
-    })
-    ],
-    var.extra_config_patches
-  )
+  config_patches = local.node_patches[each.key]
 }
 
-# ---------------------------------------------------------------------------
-# Worker machine configuration (no VIP, no control-plane scheduling concerns)
-# ---------------------------------------------------------------------------
 data "talos_machine_configuration" "worker" {
   for_each = local.worker_nodes
 
@@ -107,65 +32,7 @@ data "talos_machine_configuration" "worker" {
   talos_version      = var.talos_version
   kubernetes_version = var.kubernetes_version
 
-  config_patches = concat([
-    yamlencode({
-      machine = {
-        network = {
-          interfaces = [
-            {
-              deviceSelector = { physical = true }
-              addresses      = ["${each.value.ip_address}/${var.network_subnet}"]
-              routes         = [{ network = "0.0.0.0/0", gateway = var.network_gateway }]
-            }
-          ]
-        }
-        disks = [for d in each.value.data_disks : {
-          device     = d.device
-          partitions = [{ mountpoint = d.mountpoint }]
-        }]
-        kubelet = merge({
-          extraMounts = [for d in each.value.data_disks : {
-            destination = d.mountpoint
-            source      = d.mountpoint
-            type        = "bind"
-            options     = ["bind", "rshared", "rw"]
-          }]
-          }, var.kubernetes_version == null ? {} : {
-          image = "ghcr.io/siderolabs/kubelet:v${var.kubernetes_version}"
-        })
-      }
-    }),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "UnattendedInstallConfig"
-      installer  = { image = local.installer_image }
-      provisioning = {
-        diskSelector = { match = "disk.dev_path == \"${var.install_disk}\"" }
-      }
-    }),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "KubeletConfig"
-      "$patch"   = "delete"
-    }),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "KubeNodeConfig"
-      nodeIP     = { validSubnets = [var.kubelet_valid_subnet] }
-    }),
-
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "HostnameConfig"
-      auto       = "off"
-      hostname   = each.value.name
-    })
-    ],
-    var.extra_config_patches
-  )
+  config_patches = local.node_patches[each.key]
 }
 
 # ---------------------------------------------------------------------------

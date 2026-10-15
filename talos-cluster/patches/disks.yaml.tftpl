@@ -1,0 +1,2 @@
+machine:
+  disks: ${jsonencode([for d in data_disks : { device = d.device, partitions = [{ mountpoint = d.mountpoint }] }])}

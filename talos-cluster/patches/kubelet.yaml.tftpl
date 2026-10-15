@@ -1,0 +1,11 @@
+# Talos 1.14's KubeletConfig document has no extraMounts, so kubelet stays in the
+# legacy document and the generated KubeletConfig is removed (kubelet-config.yaml).
+# The seccomp and manifests settings restore the defaults that document carried.
+machine:
+  kubelet:
+%{ if image != null ~}
+    image: ${image}
+%{ endif ~}
+    defaultRuntimeSeccompProfileEnabled: true
+    disableManifestsDirectory: true
+    extraMounts: ${jsonencode([for d in data_disks : { destination = d.mountpoint, source = d.mountpoint, type = "bind", options = ["bind", "rshared", "rw"] }])}

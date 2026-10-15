@@ -89,6 +89,26 @@ run "machine_config_is_valid" {
   }
 
   assert {
+    condition     = strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "defaultRuntimeSeccompProfileEnabled: true")
+    error_message = "Removing KubeletConfig must not drop the default seccomp profile."
+  }
+
+  assert {
+    condition     = strcontains(data.talos_machine_configuration.controlplane["cp1"].machine_configuration, "NoSchedule")
+    error_message = "A manager-only control plane must keep its NoSchedule taint."
+  }
+
+  assert {
+    condition     = !strcontains(data.talos_machine_configuration.controlplane["cp2"].machine_configuration, "NoSchedule")
+    error_message = "A schedulable control plane must drop the NoSchedule taint."
+  }
+
+  assert {
+    condition     = !strcontains(data.talos_machine_configuration.worker["wrk1"].machine_configuration, "vip:")
+    error_message = "Workers must not claim the control-plane VIP."
+  }
+
+  assert {
     condition     = strcontains(data.talos_machine_configuration.worker["wrk1"].machine_configuration, "disk.dev_path == \"/dev/sda\"")
     error_message = "UnattendedInstallConfig must select the existing system disk."
   }
