@@ -23,10 +23,15 @@ cloud-init IP config), swapping the Talos ISO for an SSH-reachable cloud image.
 | `nodes` | `[{ name, target_pve, ip_address, cpu_*, memory_mb, disk_gb, storage_id? }]`. `name` must match a nixosConfigurations key. |
 | `ssh_public_keys` | Authorized keys for the bootstrap user (include nixos-anywhere's install key). |
 | `bootstrap_user` | cloud-init user (default `root`). |
+| `bootstrap_pve` | Proxmox node that manages the shared bootstrap image (default: `target_pve` of the first VM by name). |
 | `bootstrap_image_url` / `bootstrap_image_file_name` | Cloud image to boot from. |
 | `vm_storage_id` / `iso_storage_id` | VM disk datastore / image download datastore. |
 | `default_cpu_cores`, `default_memory_mb`, `default_disk_gb`, … | Per-node resource defaults. |
 | `network_gateway`, `network_subnet`, `network_bridge`, `nameserver` | Networking. |
+
+Set `bootstrap_pve` to the Proxmox node that already manages the shared
+bootstrap image before adding or renaming VMs that would change the first VM
+by name. The selected node must have access to `iso_storage_id`.
 
 ## Outputs
 

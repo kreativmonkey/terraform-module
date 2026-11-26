@@ -6,7 +6,7 @@ locals {
     for n in var.nodes : n.name => coalesce(n.storage_id, var.vm_storage_id)
   }
 
-  # Bootstrap image is downloaded once to shared storage; pick a stable host.
+  # Keep the download node fixed when the VM list changes.
   names_sorted      = sort(keys(local.nodes_map))
-  iso_download_node = local.nodes_map[local.names_sorted[0]].target_pve
+  iso_download_node = var.bootstrap_pve != null ? var.bootstrap_pve : local.nodes_map[local.names_sorted[0]].target_pve
 }

@@ -21,6 +21,12 @@ variable "iso_storage_id" {
 # ---------------------------------------------------------------------------
 # Bootstrap image (any cloud-init-capable Linux; nixos-anywhere kexecs from it)
 # ---------------------------------------------------------------------------
+variable "bootstrap_pve" {
+  type        = string
+  default     = null
+  description = "Proxmox node that manages the bootstrap image on iso_storage_id. Defaults to the target_pve of the first VM by name."
+}
+
 variable "bootstrap_image_url" {
   type        = string
   default     = "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2"
